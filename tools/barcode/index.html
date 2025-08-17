@@ -14,14 +14,17 @@
         <h1>바코드 생성기</h1>
         
         <div class="barcode-display">
-            <svg id="barcode"></svg>
+            <img id="barcode" alt="바코드" />
             <div id="barcode-caption" class="barcode-caption"></div>
         </div>
         
         <div class="controls">
             <div class="input-group">
                 <label for="barcode-value">바코드 값</label>
-                <input type="text" id="barcode-value" placeholder="바코드 값을 입력하세요" value="1234567890">
+                <div class="input-with-button">
+                    <input type="text" id="barcode-value" placeholder="바코드 값을 입력하세요" value="1234567890">
+                    <button id="auto-btn" class="auto-btn" title="활성화하면 입력 필드 클릭 시 자동 초기화">auto</button>
+                </div>
             </div>
             
             <div class="input-group">
@@ -35,9 +38,9 @@
             </div>
             
             <div class="button-group">
-                <button id="save-btn" class="btn btn-primary">저장</button>
+                <button id="save-btn" class="btn btn-secondary">저장</button>
                 <button id="print-btn" class="btn btn-secondary">인쇄</button>
-                <button id="copy-btn" class="btn btn-secondary">복사</button>
+                <button id="copy-btn" class="btn btn-secondary" title="바코드 이미지를 클립보드에 복사">복사</button>
             </div>
             
             <div class="settings">

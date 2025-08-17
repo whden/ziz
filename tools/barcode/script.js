@@ -1,8 +1,10 @@
 let currentBarcode = null;
+let isAutoMode = localStorage.getItem('barcodeAutoMode') === 'true';
 
 const barcodeValue = document.getElementById('barcode-value');
 const barcodeFormat = document.getElementById('barcode-format');
 const barcodeCaption = document.getElementById('barcode-caption');
+const autoBtn = document.getElementById('auto-btn');
 
 const barWidthSlider = document.getElementById('bar-width');
 const heightSlider = document.getElementById('height');
@@ -40,7 +42,7 @@ function generateBarcode() {
         textMargin: parseInt(textMarginSlider.value),
         background: backgroundColorInput.value,
         lineColor: lineColorInput.value,
-        displayValue: true,
+        displayValue: false,
         font: 'Roboto',
         fontOptions: 'bold',
         textAlign: 'center',
@@ -53,8 +55,16 @@ function generateBarcode() {
     };
     
     try {
-        JsBarcode('#barcode', value, options);
+        // 임시 canvas에 바코드 생성
+        const canvas = document.createElement('canvas');
+        JsBarcode(canvas, value, options);
+        
+        // canvas를 PNG base64로 변환하여 img src에 설정
+        const barcodeImg = document.getElementById('barcode');
+        barcodeImg.src = canvas.toDataURL('image/png');
+        
         barcodeCaption.textContent = value;
+        barcodeCaption.removeAttribute('title');
         currentBarcode = value;
     } catch (error) {
         showToast('바코드 생성 중 오류가 발생했습니다.');
@@ -121,35 +131,16 @@ function showToast(message) {
 }
 
 function saveBarcodeAsImage() {
-    const svg = document.getElementById('barcode');
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
+    const barcodeImg = document.getElementById('barcode');
     
-    img.onload = function() {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        
-        ctx.fillStyle = backgroundColorInput.value;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.drawImage(img, 0, 0);
-        
-        canvas.toBlob(function(blob) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `barcode_${currentBarcode || 'image'}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast('바코드가 저장되었습니다.');
-        });
-    };
-    
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    // img의 src에서 base64 데이터를 직접 사용
+    const a = document.createElement('a');
+    a.href = barcodeImg.src;
+    a.download = `barcode_${currentBarcode || 'image'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('바코드가 저장되었습니다.');
 }
 
 saveBtn.addEventListener('click', saveBarcodeAsImage);
@@ -161,59 +152,59 @@ printBtn.addEventListener('click', () => {
 
 async function copyBarcodeToClipboard() {
     try {
-        const svg = document.getElementById('barcode');
-        const svgData = new XMLSerializer().serializeToString(svg);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
+        const barcodeImg = document.getElementById('barcode');
         
-        await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-        });
+        // img의 src에서 base64 데이터를 가져와서 Blob으로 변환
+        const response = await fetch(barcodeImg.src);
+        const blob = await response.blob();
         
-        canvas.width = img.width;
-        canvas.height = img.height;
-        
-        ctx.fillStyle = backgroundColorInput.value;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        
-        canvas.toBlob(async (blob) => {
-            try {
-                if (navigator.clipboard && window.ClipboardItem) {
-                    const items = {
-                        'image/png': blob,
-                        'text/plain': new Blob([currentBarcode || ''], { type: 'text/plain' })
-                    };
-                    
-                    await navigator.clipboard.write([
-                        new ClipboardItem(items)
-                    ]);
-                    showToast('바코드 이미지와 텍스트가 복사되었습니다.');
-                } else {
-                    await navigator.clipboard.writeText(currentBarcode || '');
-                    showToast('바코드 텍스트가 복사되었습니다.');
-                }
-            } catch (err) {
-                console.error('Clipboard error:', err);
-                try {
-                    await navigator.clipboard.writeText(currentBarcode || '');
-                    showToast('바코드 텍스트가 복사되었습니다.');
-                } catch (textErr) {
-                    showToast('복사 기능이 지원되지 않습니다.');
-                }
-            }
-        });
+        if (navigator.clipboard && window.ClipboardItem) {
+            await navigator.clipboard.write([
+                new ClipboardItem({
+                    'image/png': blob
+                })
+            ]);
+            showToast('바코드 이미지가 복사되었습니다.');
+        } else {
+            showToast('이미지 복사가 지원되지 않습니다.');
+        }
     } catch (error) {
         console.error('Copy error:', error);
-        showToast('복사 중 오류가 발생했습니다.');
+        showToast('이미지 복사에 실패했습니다.');
     }
 }
+
+// 바코드 텍스트 클릭 시 선택 기능
+barcodeCaption.addEventListener('click', function() {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(this);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    showToast('텍스트가 선택되었습니다. Ctrl+C로 복사하세요.');
+});
+
+// Auto 버튼 기능
+autoBtn.addEventListener('click', function() {
+    isAutoMode = !isAutoMode;
+    this.classList.toggle('active', isAutoMode);
+    localStorage.setItem('barcodeAutoMode', isAutoMode);
+    showToast(isAutoMode ? 'Auto 모드 활성화' : 'Auto 모드 비활성화');
+});
+
+// Auto 모드일 때 입력 필드 클릭 시 초기화 및 붙여넣기 준비
+barcodeValue.addEventListener('click', function() {
+    if (isAutoMode) {
+        this.value = '';
+        this.focus();
+        showToast('붙여넣기 준비 완료 (Ctrl+V)');
+    }
+});
 
 copyBtn.addEventListener('click', copyBarcodeToClipboard);
 
 document.addEventListener('DOMContentLoaded', () => {
+    // localStorage에서 저장된 Auto 모드 설정 복원
+    autoBtn.classList.toggle('active', isAutoMode);
     generateBarcode();
 });
